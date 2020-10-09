@@ -1,0 +1,22 @@
+Machine learning has been widely used in many real-life scenarios in recent years. In most cases, training machine learning models requires a large amount of data. For example, training a neural network to determine whether two pictures belong to the same person may needs at least tens of thousands photos, and training a model to predict the possibility of credit default of someone needs tens of thousands credit records from different people. Those data are always distributed among different facilities. On one hand, governments across the world have published the laws against abuses of data in order to protect people's privacy and prevent those data from being stolen for evil uses. On the other hand, companies do not want their data being exposed to others. When they want to share data with others, it's always difficult to ensure that the other party will not store their data secretly for usages violates the contract. So to make different data owners to share their data and hence to build better machine learning models, privacy-preserving machine learning technologies must be adopted.
+To achieve this, researchers have worked out many solutions, which can be generalized to following major methods. 
+\begin{itemize}
+    \item Cryptography-based Methods. There are two major kinds of cryptography-based methods: 
+    
+    1. Homomorphic Encryptions(HE). The homomorphic encryption methods allow arithmetic operations on the ciphertext. For example, the Paillier cryptosystem\cite{paillier1999} supports additions on ciphertext, and the Gentry cryptosystem supports both addition and multiplication, which is the first fully homomorphic encryption scheme. The level of security is based on the security parameter, which is usually in proportion with the key length.
+    
+    2. Secure Multiparty Computation(MPC). MPC methods provide ways to calculate a function while keep the inputs private. The most famous scheme is Yao's garbled circuit\cite{lindell2009gcproof}. Secret-sharing based methods are more efficient on arithmetic calculations, so they are always combined with garbled circuit methods. E.g. SecureML\cite{mohassel2017secureml}.
+    \item Differential Privacy(DP)\cite{dwork2014dp}. DP is a tool to analyze privacy leakage. In order to reduce privacy leakage, noise can be added to the data.
+    \item Federated Learning(FL)\cite{mcmahan17fed}. FL methods protect user data privacy by sending model to user devices, e.g. mobile phones, and send the model updates back to server.
+\end{itemize}
+
+However, those methods all have some shortcomings. HE and MPC requires lots of computation or communication,  also hard to implement. DP is easy to implement, but adding noises certainly has a huge negative impact on model performance. FL methods need user devices to do computations, and can only be applied to horizontally split data(i.e. different samples with same features).
+
+\subsection{Our contributions}
+Existing methods mostly focus on designing a method or protocol that will leak no information about the raw data in the cryptographic sense. Like using homomorphic encryption, no attackers can gain any information about the data in polynomial time w.r.t. security parameter. However, this definition is not suitable for the data in machine learning setting. What is necessary is that the data cannot be reused. So I proposed a metric to quantify the information leakage during computation, and a practical method to leverage between privacy preserving and efficiency.
+In this paper, I made the following contributions:
+\begin{itemize}
+    \item A privacy definition that evaluates the possibility of reconstructing raw data from transformed data.
+    \item We proved random transformations, i.e. random linear transformation and random permutation can well protect privacy.
+    \item We designed a private machine learning framework combining random transformation and arithmetic sharing together, achieves very high efficiency in machine learning tasks.
+\end{itemize}

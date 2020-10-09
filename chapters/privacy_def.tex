@@ -1,0 +1,82 @@
+In this section, we proposed a new privacy definition named reconstructive privacy. Reconstructive privacy evaluated the possibility to reconstruct raw data from transformed data. It is a powerful tool to analyze information leakage during different transformations. Based on this, we proved random permutations and linear transformations leaks very little information of raw data.
+\subsection{Reconstructive Privacy}
+In most machine learning scenarios, the data used is in a tabular form. Every row is a training sample and every column is a feature. The metadata, i.e. the ID of each row and the attribute name of each column are very easy to be hide. The only information exposed is the entries of the data table. 
+
+How can an attacker use leaked data for his own malicious purpose? There should be two ways for an attacker to use the leaked data:
+\begin{enumerate}
+    \item Linking: The attacker have access to some other data, with overlapped samples. And then he can link the leaked data with the other data, and then gained some extra information.
+    \item Reusing: Although the attacker cannot find other data to link with leaked data, he can still store the leaked data and illegally reuse them some time later.
+\end{enumerate}
+
+Thanks to cryptography, there are plenty of ways to hide sample's ID while several parties wants to jointly train some model. E.g. Private Set Intersection(PSI) methods. So the attacker cannot directly reuses leaked data. The only way is to link the leaked data to some other data, then 're-identify' the leaked data. Linking requires common columns, so the attacker must obtain the original columns of the data. In order to measure attacker's ability to recover the raw data columns from transformed data, we defined reconstructive privacy as follows:
+
+\begin{definition}[$\epsilon$-reconstructive privacy]
+    A data transformation $T$ is said to have $\epsilon$-reconstructive privacy under auxiliary information $a$ if an adversary $\mathcal A$ with input $T(x)$ and auxiliary information $a$ has a chance at most $\epsilon$ to recover the raw data $x$.
+    In other words, for any function $A$, $E_x(p[A(T(x); a) = x]) < \epsilon$. If there are no auxiliary , 
+\end{definition}
+
+For example, consider shuffle on an array of length 5. Without any other information, the adversary can only guess randomly. So he has a $\dfrac1{5!}$ to get the correct raw data. That is, the transformation shuffle has a $\dfrac1{5!}$-reconstructive privacy with no auxiliary information.
+
+\begin{definition}[$\epsilon,\delta$-reconstructive privacy]
+    A data transformation $T$ is said to have $\epsilon$-reconstructive privacy under auxiliary information $a$ if an adversary $\mathcal A$ with input $T(x)$ and auxiliary information $a$ has chance $\epsilon$ to recover the raw data $x$ with error $\delta$. The error definition can be specifically chosen according to scenario.
+    In other words, for any function $A$, $E_x(p[|A(T(x); a) - x| < \delta]) < \epsilon$.
+\end{definition}
+
+For example, consider adding noises $e \sim \mathcal N(0,1)$ to a value $x$. The adversary get the value $x + e$, with auxiliary input that the variation of noise is 1. so he can guess the real value is in $[x + e -3, x + e + 3]$ with a $\Psi(3) - \Psi(-3) = 0.997$ confidence. That is, the transformation $T(x) = x + e$ has a $0.997,3$-reconstructive privacy.
+
+\subsection{Common Transformations}
+\textbf{Linear Transformation: }
+Let raw data be a vector  $\mathbf x$ of length $n$. A linear transformation turns $x$ into $Ax$ where $A\in \mathbb R^{m\times n}$ is a matrix. Calculating the $\epsilon$ and $\delta$ in linear transformation's reconstructive privacy is not trivial. In the following theorem, we assume that the raw data $x$ and the elements in matrix $A$ are all random variables drawn from a standard normal distribution.
+
+\begin{theorem}[Linear transformation's reconstructive privacy]\label{thm:linear}
+    Let raw data $\mathbf x \in \mathbb R^n$ be a vector with each element drawn from the standard normal distribution independently, the same as matrix $A \in \mathbb R^{m\times n}$. And let the auxiliary information for adversary is the $\mathbf x$ and $A$, both are drawn from standard normal distribution. The linear transformation $T: x\rightarrow Ax$ has a $\epsilon, \delta$-reconstructive privacy, where $\epsilon < p(|\mathbf y| <\delta)$ with $y\in \mathbb R^{n-1}, y_1,...,y_{n-1} \sim \mathcal N(0, 1)$ and $p$ is the density function. In other words, it's like the adversary has no information in $n - 1$ dimensions of the raw data $x$.
+\end{theorem}
+
+\begin{proof}
+    First, from the reconstructive privacy's definition, we have 
+    \begin{equation}
+        \label{def:raw}
+        E_\mathbf x(p[|C(A\mathbf x) - \mathbf x| < \delta]) < \epsilon
+    \end{equation}
+     Here we use $C(·)$ to denote adveray's function to avoid the confusion with transformation matrix $A$. Since $A$ is also a random variable, we can change \eqref{def:raw} into $E_{\mathbf x, A}I(|C(A\mathbf x) - \mathbf x| <\delta)$, where $I$ is a indicator function when the condition satisfies is 1, otherwise is 0. 
+    \begin{equation}
+        \epsilon =\dfrac{ \int_{A, \mathbf x}p(T=A)p(X=\mathbf x)I(|C(A\mathbf x)-\mathbf x|<\delta)d\mathbf xdA}{ \int_{A,\mathbf x}p(T=A)p(X=\mathbf x)d\mathbf xdA}
+    \end{equation}
+    
+    Where we uses $d\mathbf x$ to denote $dx_1dx_2...dx_n$, and uses $dA$ to denote $dA_{1,1}dA_{1,2}...dA_{m, n}$. In order to eliminate the annoying term $C(Ax)$, we have to do a rotation on $\mathbf x$'s coordinates and extract $y = A\mathbf x$. That produces:
+    \begin{equation}
+    \begin{split}
+        \dfrac{ \int_y \int_{A} \int_{\mathbf x, A\mathbf x=y}p(T=A)p(X=\mathbf x)I(|C(y)-\mathbf x|<\delta)dvdAdy}{ \int_y \int_{A} \int_{\mathbf x, A\mathbf x= y}p(T=A)p(X=\mathbf x)dvdAdy}
+    \end{split}
+    \end{equation}
+    Then how to find the upper bound of $\epsilon$? The intuition comes from the simple inequality $\dfrac {\int f(x) dx}{\int g(x) dx} \le \max \dfrac{f(x)}{g(x)}$ for $f(x), g(x) > 0$. Considering the hyperplane $A\mathbf x = y$, the formula 
+    
+    $\dfrac {\int_{A\mathbf x = y}p(X=x)I(|C(y) - x| < \delta)dv}{\int_{A\mathbf x = y}p(X=x)dv}$ is actually the probability of $x$ lies in the ball $\mathcal B(y, \delta)$ on the hyperplane $A\mathbf x = y$. Since the marginal distribution on that hyperplane is still a standard normal distribution, Which can be expressed by $p(z) = \dfrac{1}{\sqrt{(2\pi)^{n-1}}}e^{-|\mathbf z|^2}$. So the upperbound of $\epsilon$ is lower than the probability that the random vector $\mathbf x \in \mathbb R^{n-1}$ has a length shorter than $\delta$.
+\end{proof}
+
+The above theorem shows the linear transformation will reveal no more information than one dimension of the raw data. Actually, since we used very strong conditions to proof the upperbound of $\epsilon$, the information leakage can be far less than theory, that is, the adversary can only get a little information on one dimension of the raw data. Notice that one dimension does not mean one element in the vector.
+
+\textbf{Random permutation: } Random permutation is a basic method to hide data. Since a random permutation on a sequence of length $n$ can produce $n!$ possible outcomes, we can calculate the reconstructive privacy for it:
+\begin{theorem}[Random permutation's reconstructive privacy]
+    Random permutation on an vector of length $n$ has a 
+    
+    $\dfrac{1}{n!}$-reconstructive privacy.
+\end{theorem}
+\subsection{Attacker models}
+Assume the transformed data is send to a curious third party, who tries to reconstruct the raw data with some of his own knowledge. Here we shows that the attacker can hardly gain any other information with some part of raw data or some knowledge of the transformation.
+\subsubsection{Attacker with some part of raw data}
+Assume raw data are a collection of samples $\{\mathbf x_1, \mathbf x_2, ... , \mathbf x_n\}$(can be also represented by $X$) with dimension $d$. And the attacker have some part of raw data $\{\mathbf x_1', \mathbf x_2' ...., \mathbf x_m'\}$ with dimension $d' < d$. In this case, the attacker's purpose is to join the table and get more attributes for his samples. The attacker have to guess the mapping from his sample to columns of transformed data $Y\in\mathbb R^{f\times n}$, where there are ${n \choose m} m!$ possibilities. 
+
+For linear transformations, assume the transformation matrix $A\in\mathbb R^{d \times f}$ and the transformed data are $Y=XA$. And within each possibility, according to \eqref{thm:linear}, the attacker still have no more knowledge about $n-m-1$ dimensions of the raw data. Since ${n \choose m} m!$ is already big enough, and usually $n - m - 1$ should be much larger than 1, so we can say linear transformation is resilient to this sort of attack.
+
+As for random permutation, the possibilities increases exponentially with the data size. Supposed the raw data size is $n$, and the attacker obtains $m$ raw data values, there are still $(n-m)!$ possibilities for the remaining $n - m$ values. Hence, with large enough data size, the attacker can hardly gain any knowledge on rest of the raw data.
+\subsubsection{Attacker with knowledge of the transformation}
+Although it's hard for attackers to know anything about the random transformation, since the data holder decides it, but it is still worth discussion. 
+
+For random permutations, if the attacker knows some part of the permutation, say, $m$ out of $n$ entries in a permutation are revealed, then he still has no knowledge about the remaining $(n - m)$'s elements positions. Thus, he knows nothing besides what he already knows. 
+
+And for random linear transformations $f: \mathbb R^m \rightarrow \mathbb R^n$, when $n < m$(which is in most of the cases), even if the attacker knows $f$, he cannot find $f^{-1}$ since it's not a bijective function. One $f(x)$ corresponds to infinite possible $x$. Only if the attacker also know the distribution of sample space $\{x\}$ and the samples are actually lying on some subspace of $\mathbb R^{m'}$ and $m' < n$, could he have a chance to fully reconstruct the original data. However, unlike the data, where attacker may get some of the raw data from other sources, it's impossible for attacker to know all about the transformation since it's performed locally by data owner. So this kinds of attack can be very rare. The transformation can be considered as a 'private key' of data owner, and shall be secure.
+
+\subsection{Extending Raw Data's Definition}
+In the discussion above, we refer 'raw data' as the raw data value, i.e. a vector, a table. But some times, the numeric values are not the essence of the data. For example, a online store gathered millions of people's purchase records. It uses different integers to refer different items and consumers, denoted by ID. For example, a book is represented by 1, and a T-shirt is represented by 100. So the whole dataset can be a matrix where if consumer i bought item j, the entry (i, j) is 1, otherwise 0. Randomly swaps the ID of two items or consumers for multiple times, it's impossible to reconstruct the original matrix. So does it achieves a 'exponentially  small $\epsilon$'-reconstructive privacy? Of course not. Since the real information of the dataset is not the interaction matrix. It is the user-item graph. A graph can have exponentially large number of adjacent matrices. Although two matrices may look not like each other at all, but they can be the adjacent matrices of the same graph. An attacker can get the graph, and with some background knowledge, i.e. by examining the degrees of each user node and item node, he can guess which item node corresponding to which real item. Hence he can use those data for his own benefit, i.e. training a recommender system. So are the images. Since convolutional models do the same linear transformation on different parts of the image, thus, the relations of different parts of the image is reserved, and attackers can easily guess the content of the raw image.
+The above two cases show that the raw data is not always the numeric values, but some structure lies inside the numbers. So in order to achieve privacy preserving, the raw data's definition must be carefully chosen by domain experts.

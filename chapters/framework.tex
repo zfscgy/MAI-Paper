@@ -1,0 +1,55 @@
+In the last section, we showed that the random transformations can preserve privacy by disabling adversaries to recover raw data from the transformed data. So it is safe for data holders to give out its raw data to some third party to perform computation and the get back the results. To take advantage of this, we designed a framework merging random transformations and MPC operations together, in order to perform private machine learning tasks more efficiently.
+\subsection{Arithmetic Sharing}
+To our knowledge, arithmetic sharing was first formally proposed on the ABY\cite{demmler2015aby} framework. It's based on shamir's secret sharing scheme\cite{shamir1979share}. In this paper, we use the 2-party setting for simplicity.
+
+\textbf{Sharing: }
+A value $x$ is shared among parties $P_0, P_1$ means that $P_0$ holds a value $\langle x\rangle_0$ while $P_1$ holds a value $\langle x\rangle_1$ with the constraint $\langle x\rangle_0 +\langle x\rangle_1 = x$. To share a value $x\in \mathbb R^n$, party $P_i$ just simply pick $r \in \mathbb R^n$ and send $r$ and $x - r$ to $P_0$ and $P_1$ respectively.
+
+Note that here we do not convert float values into fixed point integers. But it can cause problems, i.e., when $x$ is large and $r$ is small, $x - r \approx x$. In order to prevent this, we uses a $r$ whose variation is greater than $x$, so its safe to share $r$ and $x - r$. 
+
+\textbf{Reconstruction: }
+$P_0, P_1$ both send their value some party $P_i$, could be one of them or a third-party. The raw value is reconstructed immediately by $P_i$ summing two values.
+
+\textbf{Addition: }
+When adding a public value $a$ to a shared value $x$, the two parties just add $a/2$ to their shares of $x$.
+When adding a shared value $a$ to a shared value $x$, the two parties just add their shares of $a$ and $x$ respectively.
+
+\textbf{Multiplication: }
+When multiplying a public value $a$, the two parties just multiply their shares by $a$.
+Multiplication with a shared value is kind of tricky. We adopted the beaver triple in this framework. Suppose multiply shared value $x$ with shared value $y$. This requires a precomputed triple $uv = w$. In the sense of matrix, the $u$ should have the same shape with $x$ and $v$ should have the same shape with $y$. So $xy = (x - u)(y - v) + (x -u)v + u(y - v) + uv$. And $x - u$ and $y - v$ can be public since $u$ and $v$ are shared private values, this formula can be evaluated in a shared manner. Both parties then shares the product $xy$.
+
+\textbf{Convolutional Layers: }
+Convolutional layers are like dense layer. The filters are the weights of a dense layer, and the input image have to be transformed to a new matrix where different rows are different areas of the raw image. Let the input image be $X$ and the filters be $F$, it's easy to see the convolution operation $X*F$ satisfies the distribution law, i.e. $X*(F_1 + F_2) = X*F_1 + X*F_2$ and $(X_1 + X_2) * F = X_1*F + X_2*F$. So does the gradients (actually, the jacobian matrix) of convolution $\dfrac{\partial (X*F)}{\partial X}$ and $\dfrac{\partial (X*F)}{\partial F}$. Hence, the calculation of Convolutional layers and its gradients can be applied just like ordinary scalar or matrix multiplications.
+
+\subsection{Adding Random Transformation to Arithmetic Sharing}
+\subsubsection{Nonlinear Functions}
+In previous MPC systems, the most difficult and costly part is the computation of nonlinear functions, including neural network's activation functions and logical functions, i.e. comparisons. Existing works mostly uses garbled circuit or polynomial approximation to calculate them. These methods result in heavy computation and communication costs.
+
+By adopting reconstructive privacy, this can be quite easy. our framework contains several semi-honest third parties who can perform computation. While $P_0, P_1$ contains a shared vector $x$, when they wants to compute $f(x)$, where $f$ is some element-wise nonlinear function, they first get a random permutation of $x$, denoted by $x'$. Then they send the $x'$ to a third party $P_2$ who computes $f(x')$ and shares it to $P_0$ and $P_1$. Permuting it back, $P_1$ and $P_2$ then get the shares of $f(x)$. 
+
+\textbf{Element-wise Functions: }
+1. Either $P_0$ or $P_1$ generates a random permutation $P$ and send it to the other.
+2. Each party calculates $\langle x_i'\rangle = P(\langle x_i\rangle)$ to get the permuted shared values.
+2. Then they reconstruct value $x$ to a third party $P_3$. $P_3$ computes $f(x)$ then share it to $P_1$ and $P_2$. $P_1$ and $P_2$ then reconstruct the shared value using the inverse permutation $P^{-1}$ which can be easily calculated.
+\subsubsection{Distribute Works to Third Party}
+After appropriate random transformations, the data can be securely revealed to third party, then the third party can fit a model. But only fitting the model on transformed data, the performance will certainly dropped since the data are transformed and may lose some information. But this can be overcome by 'fitting' the transformation. Assume data $X$ is shared between two parties $P_1$ and $P_2$, so is the parameter $W_0$. Using arithmetic sharing, they can compute the matrix product $XW_0$ securely. Then they can send their shares to a third-party $P_3$ with label $Y$ and its local model $F$ with trainable parameters $W_1$. $P_3$ can then compute gradients $\dfrac{\partial L(F(XW_0), Y)}{\partial W_1}$ and $\dfrac{\partial L(F(XW_0), Y)}{\partial (XW_0)}$. .The former gradients are directly used by $P_3$ to update its local parameters. And the latter gradients are shared to $P_1$ and $P_2$. Using the chain rule, $P_1$ and $P_2$ are able to calculate their gradients $\dfrac{\partial L(F(XW_0), Y)}{\partial (W_0)}$ and then update their parameters. 
+
+In the third-party's perspective, since he knows nothing about the $P_1$ and $P_2$'s shared parameters $W_0$, $XW_0$ can be considered as random transformations. And with the gradients sent back, the random transformations are actually learning themselves. So the whole 'shared' model can achieve same performance just like a local model.
+
+\subsection{Put it All Together}
+Combining arithmetic sharing and random transformations together, the framework mainly provides following functionalities:
+\begin{itemize}
+    \item Arithmetic operations, e.g. addition, subtraction, multiplication, multiplication-like operations like convolution.
+    \item Element-wise functions, e.g. sigmoid, relu and their gradients.
+    \item Distribute further computation to a semi-honest third party after proper transformation. E.g. for neural networks, the first layer (without activation) is performed by arithmetic sharing, then the layer outcome is reconstructed by a third party, who uses his local model to perform further computation.
+\end{itemize}
+
+This framework requires at least 1 semi-honest party to generate multiplication triples and doing element-wise function computations. Another semi-honest third party can be chosen to do further computations, or the party who holds the label data.
+
+And the actual implementation depends on different tasks. For example, logistic regression in federated learning setting, the data holders first share their data on two semi-honest servers, with other computation service providers as helpers of matrix multiplication and performing element-wise function calculation. For deep convolutional networks, first a few layers can be performed in a secure way. After that, the output can be considered as 'random transformed', so a third party with strong computation power can do afterwards computation.
+
+So we proposed two methods under our framework:
+\begin{enumerate}
+    \item RTAS: Only use random transformations for non-linear functions. This method is fit for the tasks where label holder do not have computation power, and the label(raw data, already without any ID) is sensitive. Or all parties do not want any third party to perform further training, and the feature holders do not want to reveal the transformed feature data to label holder(since the label holder have the IDs of samples, he may reuse the transformed feature data without warranty).
+    \item RTAS-fast: Distrubute further computation to label holder or a third-party. This method is fit for the tasks where label is considered non-sensitive, or label holder have good computation power and the feature holders are not concerned about the reuse of transformed feature data, for example, the transformation reduced many dimensions, hence the transformed data is useless except in the current task.
+\end{enumerate}

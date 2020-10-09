@@ -1,0 +1,101 @@
+In this section, we performed experiments on MNIST dataset using RTAS and RTAS-fast. The speed and the network traffic are measured. First experiment is logistic regression on MNIST\cite{lecun1998mnist} dataset predicting whether the given digit is 0 or not. The commercial private computing library Rosetta\footnote{https://github.com/LatticeX-Foundation/Rosetta} is used for comparation. Rosetta uses polynomial approximation for sigmoid functions, and its basic functionalities are based on SecureNN. The second experiment is a CNN for image classification on MNIST. For comparison, CryptoNets and SecureNN are used. Both training and inference speed are evaluated.
+\subsection{Implementation}
+To realize the framework, we uses tensorflow 2.x as the backend to perform the computations, and all computations is performed in the eager mode. We uses the GRPC library for making RPC calls across different parties. 
+As for random permutation generation and inversion, we uses numpy's random generator. We creates a party to deliver all rpc calls according to the protocol, named the coordinator. When a computation needs to be performed on a party, i.e. loading a data file, doing addition, subtraction or matrix multiplication, the coordinator will generate a string representing the expression. The receiver party parses the string and do computation according to it. When the computation is finished, the receiver party saves the result tensor in its container, and then returns a unique key to the coordinator. For coordinator, the key is representing a 'remote tensor'. When one party needs the value of some other party's tensor, it also makes a rpc call. The tensor is serialized by first converting to numpy array and then uses pickle. Parallel rpc calls is made wherever it is possible. The computation can be composition of basic computations in order to reduce number of rpc calls.
+\subsection{Dataset and System Settings}
+We used the MNIST dataset for experiments. The MNIST dataset contains 55000 images of handwriten digits from number 0-9, equally numbered. Each image is of 8-bits gray scale and size 28 × 28. The label is a one hot vector of length 10 indicating the image belong to which number. We used 50000 images for training and 5000 for validating. The image pixel values are is scaled to [0,1) by multiply 1/256 for consistency. 
+
+The experiment is executed on a cloud server which has 16 processor cores of frequency 2.5GHz and 64GB memory, and a Tesla T4 GPU. All the parties are simulated by individual python processes. For CryptoNets, since it only supports windows system, we implemented it on my laptop with 16Gb RAM and a 4-core intel i7-7700hq processor with base frequency 2.8GHz.
+The experiments are conducted in both LAN setting and WAN setting. In LAN setting, all parties' addresses are 127.0.0.1. And in WAN setting, all parties' addresses are the public IP address of the cloud server.
+\subsection{Logistic Regression}
+We conducted logistic regression on MNIST dataset. The feature's dimension is 784, and the label is 'whether the digit is 0'. The internet traffic is measured by tsharks program.
+The formula for logistic regression is 
+\begin{equation}
+    \mathbf y = sigmoid(\mathbf x W + \mathbf b) \text{ where } sigmoid(z) = \dfrac{1}{1 + e^{-z}}
+\end{equation}
+Since it contains only matrix addition, multiplication and element-wise function(sigmoid), it can be securely calculated by RTAS and RTAS-fast. So is its gradients.
+
+In the experiment, the batch size is set to 32 and the learning rate is set to 0.1. Mean squared loss and SGD optimization is used.
+
+\begin{table}[htbp]
+    \caption{One-batch training/inference time for logistic regression}
+    \begin{center}
+    \begin{tabular}{|c|c|C{4.5}|C{4.5}|C{4.5}|}
+    \hline
+    Network & Model & Rosetta & RTAS & RTAS-fast \\
+    \hline
+    \multirow{2}{*}{LAN} & Train &  &  & \\
+    \cline{2-5}
+     & Infer &  &  & \\
+    \hline
+    \multirow{2}{*}{WAN} & Train &  &  & \\
+    \cline{2-5}
+     & Infer &  &  & \\
+    \hline
+    \end{tabular}
+    \label{table:eta-log}
+    \end{center}
+\end{table}
+
+\begin{table}[htbp]
+    \caption{One-batch training/inference network traffic(Mb) for logistic regression}
+    \begin{center}
+    \begin{tabular}{|c|c|C{4.5}|C{4.5}|C{4.5}|}
+    \hline
+     Model & Rosetta & RTAS & RTAS-fast \\
+    \hline
+     Train &  &  & \\
+    \hline
+     Infer &  &  & \\
+    \hline
+    \end{tabular}
+    \label{table:traffic-log}
+    \end{center}
+\end{table}
+
+\subsection{Convolutional Neural Network}
+We also tested a convolutional neural network(CNN) using our framework and compared the result with CryptoNets\cite{bachrach2016cryptonets} and SecureNN\cite{wagh2019securenn}. The structure of the CNN is as follows:
+\begin{enumerate}
+    \item Conv layer: filters=4, kernel size=4×4, stride=2, activation=relu
+    \item Dense layer: input size=13*13*5, output size=100, activation=sigmoid
+    \item Dense layer: input size=100, output size=10, activation=sigmoid
+\end{enumerate}
+
+For inference, we used a batch size 8192, since CryptoNets have a minimum batch size 8192. And since CryptoNets do not supports training we used batch size 32 for training.
+
+\begin{table}[htbp]
+    \small
+    \caption{One-batch training/inference time(s) for CNN}
+    \begin{center}
+    \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    Net& Model & CryptoNets & SecureNN & RTAS & RTAS-fast \\
+    \hline
+    \multirow{2}{*}{LAN} & Infer & 55.21 & 122.61±1.01 & 10.61±0.12  & \\
+    \cline{2-6}
+     & Train & - & 0.38±0.01 & 0.54±0.00 & \\
+    \hline
+    \multirow{2}{*}{WAN} & Infer & 55.21+100 & 6981±231 & 212.15±0.89 & \\
+    \cline{2-6}
+     & Train & - & 31.64±0.78 & 3.25±0.09 & \\
+    \hline
+    \end{tabular}
+    \label{table:eta-cnn}
+    \end{center}
+\end{table}
+
+\begin{table}[htbp]
+    \caption{One-batch training/inference network traffic(Mb) for CNN}
+    \begin{center}
+    \begin{tabular}{|c|C{4.5}|C{4.5}|C{4.5}|C{4.5}|}
+    \hline
+     Model & Crypto-Nets & Secure-NN & RTAS & RTAS-fast \\
+    \hline
+     Train & - & 22632 & 333.6 & \\
+    \hline
+     Infer & 294 & 1052.33 & 10.23 & \\
+    \hline
+    \end{tabular}
+    \label{table:traffic-cnn}
+    \end{center}
+\end{table}
